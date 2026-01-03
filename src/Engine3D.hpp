@@ -13,6 +13,7 @@ private:
   void updateCamera();
   void draw();
   void processInput();
+  void setupLighting();
 
   // Input event callbacks
   void keyPressed(int key);
@@ -38,4 +39,16 @@ public:
   // Camera settings
   float cameraSpeed = 200.0f;
   float mouseSensitivity = 0.003f;
+
+  // Lighting
+  Shader lightingShader = {};
+  int lightPosLoc = 0;
+  int viewPosLoc = 0;
+  int lightColorLoc = 0;
+  int objectColorLoc = 0;
+  int ambientLoc = 0;
+
+  // Models for proper lighting
+  Model planetModel = {};
+  Model sunModel = {};
 };

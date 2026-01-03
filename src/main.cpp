@@ -1,9 +1,9 @@
-#include "Engine3D.hpp"
+#include "Engine.hpp"
 #include <exception>
 #include <print>
 
 int main() {
-  Engine3D engine;
+  Engine engine;
   try {
     engine.run();
   } catch (const std::exception &e) {

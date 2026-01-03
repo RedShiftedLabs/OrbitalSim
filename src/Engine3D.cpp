@@ -10,6 +10,46 @@ void Engine3D::setup() {
 
   // Disable cursor for free camera mode
   DisableCursor();
+
+  // Setup lighting
+  setupLighting();
+}
+
+void Engine3D::setupLighting() {
+  // Load lighting shader
+  lightingShader = LoadShader("shaders/lighting.vs", "shaders/lighting.fs");
+
+  // Get shader uniform locations
+  lightPosLoc = GetShaderLocation(lightingShader, "lightPos");
+  viewPosLoc = GetShaderLocation(lightingShader, "viewPos");
+  lightColorLoc = GetShaderLocation(lightingShader, "lightColor");
+  objectColorLoc = GetShaderLocation(lightingShader, "objectColor");
+  ambientLoc = GetShaderLocation(lightingShader, "ambientStrength");
+
+  // Set shader's MVP matrix location
+  lightingShader.locs[SHADER_LOC_MATRIX_MODEL] =
+      GetShaderLocation(lightingShader, "matModel");
+  lightingShader.locs[SHADER_LOC_MATRIX_MVP] =
+      GetShaderLocation(lightingShader, "mvp");
+  lightingShader.locs[SHADER_LOC_MATRIX_NORMAL] =
+      GetShaderLocation(lightingShader, "matNormal");
+
+  // Create sphere models
+  Mesh planetMesh = GenMeshSphere(bodyRadius, 32, 32);
+  planetModel = LoadModelFromMesh(planetMesh);
+  planetModel.materials[0].shader = lightingShader;
+
+  Mesh sunMesh = GenMeshSphere(sunRadius, 32, 32);
+  sunModel = LoadModelFromMesh(sunMesh);
+
+  // Set light color (sun is bright yellow-white)
+  float lightColor[4] = {1.0f, 0.95f, 0.8f, 1.0f};
+  SetShaderValue(lightingShader, lightColorLoc, lightColor,
+                 SHADER_UNIFORM_VEC4);
+
+  // Set ambient strength
+  float ambient = 0.1f;
+  SetShaderValue(lightingShader, ambientLoc, &ambient, SHADER_UNIFORM_FLOAT);
 }
 
 void Engine3D::processInput() {
@@ -112,6 +152,12 @@ void Engine3D::update() {
   // Update camera movement
   updateCamera();
 
+  // Update shader uniforms for lighting
+  Vector3 sunPos = {0.0f, 0.0f, 0.0f};
+  SetShaderValue(lightingShader, lightPosLoc, &sunPos, SHADER_UNIFORM_VEC3);
+  SetShaderValue(lightingShader, viewPosLoc, &camera.position,
+                 SHADER_UNIFORM_VEC3);
+
   // Physics: gravitational force toward origin (sun at 0,0,0)
   Vector3 rVec = Vector3Negate(pos);
   float distance = Vector3Length(rVec);
@@ -129,17 +175,20 @@ void Engine3D::update() {
 
 void Engine3D::draw() {
   BeginDrawing();
-  ClearBackground((Color){10, 10, 10, 255});
+  ClearBackground((Color){5, 5, 15, 255});
 
   BeginMode3D(camera);
 
-  // Draw sun at origin
-  DrawSphere({0, 0, 0}, sunRadius, YELLOW);
+  // Draw sun (emissive, no lighting needed - just bright color)
+  DrawModel(sunModel, {0, 0, 0}, 1.0f, YELLOW);
 
-  // Draw orbiting body
-  DrawSphere(pos, bodyRadius, SKYBLUE);
+  // Draw planet with lighting (sun-facing side bright, opposite dark)
+  float planetColor[4] = {0.3f, 0.6f, 0.9f, 1.0f}; // Blue color
+  SetShaderValue(lightingShader, objectColorLoc, planetColor,
+                 SHADER_UNIFORM_VEC4);
+  DrawModel(planetModel, pos, 1.0f, WHITE);
 
-  // Draw orbit trail hint (optional grid)
+  // Draw grid
   DrawGrid(20, 50.0f);
 
   EndMode3D();
@@ -162,6 +211,11 @@ void Engine3D::run() {
     update();
     draw();
   }
+
+  // Cleanup
+  UnloadModel(planetModel);
+  UnloadModel(sunModel);
+  UnloadShader(lightingShader);
 
   CloseWindow();
 }
