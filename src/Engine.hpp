@@ -31,6 +31,9 @@ private:
   void mousePressed(int x, int y);
   void mouseReleased(int x, int y);
   void panView(Vector2 delta);
+  void zoom(float delta);
+
+  Vector2 screenToWorld(Vector2 screenPos);
 
 public:
   const int W = 1024;
@@ -41,8 +44,9 @@ public:
   float GM = 5000000.0f;
 
   Vector2 cameraOffset = {0, 0};
+  float zoomScale = 0.25f;
+
   bool isDragging = false;
   int draggedObjIndex = -1;
   Vector2 lastMousePos = {0, 0};
-  bool isPanning = false;
 };

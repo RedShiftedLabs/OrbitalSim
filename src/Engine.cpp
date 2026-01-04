@@ -4,22 +4,31 @@
 #include <raymath.h>
 
 void Engine::setup() {
-  objects.reserve(2);
-  objects.emplace_back(Vector2{center.x - 400.0f, center.y}, // position
-                       Vector2{0.0f, -500.0f},               // velocity
-                       8.0f,                                 // radius
-                       2.0f,                                 // mass
-                       BLUE);
-  objects.emplace_back(Vector2{center.x + 400.0f, center.y}, // position
-                       Vector2{0.0f, 500.0f},                // velocity
-                       8.0f,                                 // radius
-                       1.0f,                                 // mass
-                       GREEN);
-  objects.emplace_back(Vector2{center.x, center.y}, // position
-                       Vector2{0.0f, 0.0f},         // velocity
-                       16.0f,                       // radius
-                       80.0f,                       // mass
-                       RED);
+  objects.reserve(4);
+  auto Planet =
+      objects.emplace_back(Vector2{center.x - 2200.0f, center.y}, // position
+                           Vector2{0.0f, -1200.0f},               // velocity
+                           8.0f,                                  // radius
+                           2.0f,                                  // mass
+                           BLUE);
+  auto moon = objects.emplace_back(
+      Vector2{Planet.pos.x - 90, Planet.pos.y},  // position
+      Vector2{Planet.vel.x, Planet.vel.y - 260}, // velocity
+      2.0f,                                      // radius
+      0.05f,                                     // mass
+      ORANGE);
+  auto Star = objects.emplace_back(Vector2{center.x, center.y}, // position
+                                   Vector2{0.0f, 0.0f},         // velocity
+                                   16.0f,                       // radius
+                                   800.0f,                      // mass
+                                   RED);
+}
+
+Vector2 Engine::screenToWorld(Vector2 screenPos) {
+  Vector2 fromCenter = Vector2Subtract(screenPos, center);
+  Vector2 scaled = Vector2Scale(fromCenter, 1.0f / zoomScale);
+  Vector2 worldPos = Vector2Subtract(Vector2Add(scaled, center), cameraOffset);
+  return worldPos;
 }
 
 void Engine::processInput() {
@@ -39,8 +48,25 @@ void Engine::processInput() {
 
   Vector2 scroll = GetMouseWheelMoveV();
   if (scroll.x != 0 || scroll.y != 0) {
-    Vector2 panDelta = {scroll.x * 30.0f, scroll.y * 30.0f};
-    panView(panDelta);
+    if (IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER) ||
+        IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) {
+      zoom(scroll.y * 0.1f);
+    } else {
+      Vector2 panDelta = {scroll.x * 30.0f, scroll.y * 30.0f};
+      panView(panDelta);
+    }
+  }
+
+  if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD)) {
+    zoom(0.1f);
+  }
+  if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT)) {
+    zoom(-0.1f);
+  }
+
+  if (IsKeyPressed(KEY_ZERO)) {
+    zoomScale = 1.0f;
+    cameraOffset = {0, 0};
   }
 
   lastMousePos = mousePos;
@@ -50,8 +76,16 @@ void Engine::panView(Vector2 delta) {
   cameraOffset = Vector2Add(cameraOffset, delta);
 }
 
+void Engine::zoom(float delta) {
+  zoomScale += delta;
+  if (zoomScale < 0.1f)
+    zoomScale = 0.1f;
+  if (zoomScale > 5.0f)
+    zoomScale = 5.0f;
+}
+
 void Engine::mousePressed(int x, int y) {
-  Vector2 worldPos = {(float)x - cameraOffset.x, (float)y - cameraOffset.y};
+  Vector2 worldPos = screenToWorld({(float)x, (float)y});
 
   for (size_t i = 0; i < objects.size(); i++) {
     float dist = Vector2Distance(worldPos, objects[i].pos);
@@ -65,7 +99,7 @@ void Engine::mousePressed(int x, int y) {
 
 void Engine::mouseDragged(int x, int y) {
   if (isDragging && draggedObjIndex >= 0) {
-    Vector2 worldPos = {(float)x - cameraOffset.x, (float)y - cameraOffset.y};
+    Vector2 worldPos = screenToWorld({(float)x, (float)y});
     objects[draggedObjIndex].pos = worldPos;
     objects[draggedObjIndex].vel = {0, 0};
   }
@@ -75,7 +109,7 @@ void Engine::mouseReleased(int x, int y) {
   if (isDragging && draggedObjIndex >= 0) {
     Vector2 mousePos = {(float)x, (float)y};
     Vector2 dragVel = Vector2Subtract(mousePos, lastMousePos);
-    objects[draggedObjIndex].vel = Vector2Scale(dragVel, 10.0f);
+    objects[draggedObjIndex].vel = Vector2Scale(dragVel, 10.0f / zoomScale);
   }
   isDragging = false;
   draggedObjIndex = -1;
@@ -126,13 +160,19 @@ void Engine::draw() {
   ClearBackground((Color){10, 10, 10, 255});
 
   for (const auto &obj : objects) {
-    Vector2 screenPos = Vector2Add(obj.pos, cameraOffset);
-    DrawCircleV(screenPos, obj.radius, obj.color);
+    Vector2 worldOffset = Vector2Add(obj.pos, cameraOffset);
+    Vector2 fromCenter = Vector2Subtract(worldOffset, center);
+    Vector2 scaled = Vector2Scale(fromCenter, zoomScale);
+    Vector2 screenPos = Vector2Add(scaled, center);
+
+    float screenRadius = obj.radius * zoomScale;
+    DrawCircleV(screenPos, screenRadius, obj.color);
   }
 
   DrawFPS(10, 10);
-  DrawText("Click: Drag objects | Two-finger scroll: Pan view", 10, 30, 16,
-           GRAY);
+  DrawText(TextFormat("Zoom: %.1fx", zoomScale), 10, 30, 16, WHITE);
+  DrawText("Scroll: Pan | Cmd+Scroll: Zoom | +/-: Zoom | 0: Reset", 10, H - 30,
+           14, GRAY);
   EndDrawing();
 }
 
